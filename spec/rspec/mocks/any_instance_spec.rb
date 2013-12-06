@@ -97,6 +97,16 @@ module RSpec
         end
 
         context "behaves as 'every instance'" do
+          class SuperClass
+            def foo; 'bar'; end
+          end
+          class SubClass < SuperClass
+          end
+          let(:example_group) { RSpec::Core::ExampleGroup.describe }
+          let(:reporter)      { ::RSpec::Core::Reporter.new RSpec::Core::Configuration.new.tap { |c| c.output_stream = StringIO.new } }
+          let(:examples)      { [] }
+          let(:results)       { examples.map(&:exception).compact }
+
           it "stubs every instance in the spec" do
             klass.any_instance.stub(:foo).and_return(result = Object.new)
             expect(klass.new.foo).to eq(result)
@@ -114,6 +124,44 @@ module RSpec
 
             foo = 'foo'.freeze
             expect(foo.dup.concat 'bar').to eq 'foobar'
+          end
+
+          it 'handles stubbing on super and subclasses' do
+            SuperClass.any_instance.stub(:foo)
+            SubClass.any_instance.stub(:foo).and_return('baz')
+            expect(SubClass.new.foo).to eq('baz')
+          end
+
+          it 'handles method restoration on subclasses' do
+            SuperClass.any_instance.stub(:foo)
+            SubClass.any_instance.stub(:foo)
+            SubClass.any_instance.unstub(:foo)
+            expect(SubClass.new.foo).to eq("bar")
+          end
+
+          it 'cleans up between specs' do
+            examples << example_group.example do
+              SuperClass.any_instance.stub(:foo).and_return('baz')
+              expect(SuperClass.new.foo).to eq('baz')
+            end
+            examples << example_group.example do
+              expect(SuperClass.new.foo).to eq('bar')
+            end
+            example_group.run reporter
+            expect(results).to eq([])
+          end
+
+          it 'cleans up sub classes between specs' do
+            examples << example_group.example do
+              SuperClass.any_instance.stub(:foo)
+              SubClass.any_instance.stub(:foo).and_return('baz')
+              expect(SubClass.new.foo).to eq('baz')
+            end
+            examples << example_group.example do
+              expect(SubClass.new.foo).to eq('bar')
+            end
+            example_group.run reporter
+            expect(results).to eq([])
           end
         end
 
