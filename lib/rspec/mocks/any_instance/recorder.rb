@@ -176,13 +176,12 @@ module RSpec
         end
 
         def restore_original_method!(method_name)
-          alias_method_name = build_alias_method_name(method_name)
-          @klass.class_exec do
-            begin
+          if @klass.instance_method(method_name).owner == @klass
+            alias_method_name = build_alias_method_name(method_name)
+            @klass.class_exec do
               remove_method method_name
               alias_method  method_name, alias_method_name
               remove_method alias_method_name
-            rescue NameError
             end
           end
         end
